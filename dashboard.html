@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Discovery Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <h1>🔐 Crypto Discovery Dashboard</h1>
+            <p>Quantum-Safe Cryptographic Asset Management & Migration Planning</p>
+        </div>
+
+        <!-- Statistics Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-number" id="total-assets">-</div>
+                <div class="stat-label">Total Assets</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-number" id="vulnerable-assets">-</div>
+                <div class="stat-label">Quantum Vulnerable</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-number" id="risk-score">-</div>
+                <div class="stat-label">Avg Risk Score</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-number" id="compliance-score">-</div>
+                <div class="stat-label">Compliance %</div>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="controls-section">
+            <div class="controls-header">
+                <h2 class="controls-title">Actions</h2>
+                <div class="controls-group">
+                    <button class="btn btn-primary" onclick="startScan()" id="scan-btn">
+                        <span>🔍</span> Start Full Scan
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshData()">
+                        <span>🔄</span> Refresh Data
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportCSV()">
+                        <span>📊</span> Export CSV
+                    </button>
+                    <button class="btn btn-secondary" onclick="showMigrationPlan()">
+                        <span>🚀</span> Migration Plan
+                    </button>
+                    <button class="btn btn-secondary" onclick="showComplianceReport()">
+                        <span>📋</span> Compliance Report
+                    </button>
+                        <button class="btn btn-danger" onclick="resetScans()">
+                        <span>♻️</span> Reset Scans
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container" id="scan-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text" id="progress-text">Scanning cryptographic assets...</div>
+            </div>
+
+            <!-- Messages -->
+            <div class="error-message" id="error-message"></div>
+            <div class="success-message" id="success-message"></div>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label class="filter-label">Asset Type</label>
+                    <select class="filter-select" id="type-filter" onchange="applyFilters()">
+                        <option value="">All Types</option>
+                        <option value="certificate">Certificates</option>
+                        <option value="ssh_key">SSH Keys</option>
+                        <option value="code_reference">Code References</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Status</label>
+                    <select class="filter-select" id="status-filter" onchange="applyFilters()">
+                        <option value="">All Statuses</option>
+                        <option value="vulnerable">Vulnerable</option>
+                        <option value="secure">Secure</option>
+                        <option value="expired">Expired</option>
+                        <option value="deprecated">Deprecated</option>
+                        <option value="weak">Weak</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Algorithm</label>
+                    <select class="filter-select" id="algorithm-filter" onchange="applyFilters()">
+                        <option value="">All Algorithms</option>
+                        <option value="RSA">RSA</option>
+                        <option value="ECDSA">ECDSA</option>
+                        <option value="Ed25519">Ed25519</option>
+                        <option value="AES">AES</option>
+                        <option value="DES">DES</option>
+                        <option value="MD5">MD5</option>
+                        <option value="SHA1">SHA1</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Search</label>
+                    <input type="text" class="filter-input" id="search-filter" placeholder="Search source paths..." oninput="applyFilters()">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">&nbsp;</label>
+                    <button class="btn btn-secondary" onclick="clearFilters()">
+                        <span>🔄</span> Clear Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assets Table Section -->
+        <div class="data-section">
+            <div class="section-header">
+                <h2 class="section-title">Cryptographic Assets</h2>
+                <div class="controls-group">
+                    <select class="filter-select" id="sort-select" onchange="sortAssets()">
+                        <option value="risk_score">Sort by Risk Score</option>
+                        <option value="type">Sort by Type</option>
+                        <option value="algorithm">Sort by Algorithm</option>
+                        <option value="status">Sort by Status</option>
+                        <option value="last_updated">Sort by Last Updated</option>
+                    </select>
+                </div>
+            </div>
+            <div id="assets-container">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔍</div>
+                    <div class="empty-state-title">Loading assets...</div>
+                    <p>Please wait while we fetch your cryptographic assets.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Migration Plan Modal -->
+    <div class="modal" id="migration-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">🚀 Quantum-Safe Migration Plan</h2>
+                <button class="close-btn" onclick="closeMigrationModal()">&times;</button>
+            </div>
+            <div id="migration-content">
+                <div class="empty-state">
+                    <div class="loading-spinner"></div>
+                    <p>Generating migration plan...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance Report Modal -->
+    <div class="modal" id="compliance-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">📋 Compliance Report</h2>
+                <button class="close-btn" onclick="closeComplianceModal()">&times;</button>
+            </div>
+            <div id="compliance-content">
+                <div class="empty-state">
+                    <div class="loading-spinner"></div>
+                    <p>Generating compliance report...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
