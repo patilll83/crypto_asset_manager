@@ -32,7 +32,7 @@ Crypto Discovery is a modular Python system for scanning, inventorying, and mana
 </p>
 
 <p align="center">
-  <img src="docs/images/migration_plan.png" alt="Migration Plan" width="700"/>
+  <img src="docs/images/migration.png" alt="Migration Plan" width="700"/>
   <br><i>Automated migration plan for quantum-safe upgrades.</i>
 </p>
 
