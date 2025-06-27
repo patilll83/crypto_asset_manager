@@ -36,7 +36,7 @@ Crypto Discovery is a modular Python system for scanning, inventorying, and mana
   <br><i>Automated migration plan for quantum-safe upgrades.</i>
 </p>
 
-> **Tip:** Replace these images with your own screenshots from the running dashboard for best results!
+> 
 
 ---
 
@@ -55,7 +55,7 @@ Crypto Discovery is a modular Python system for scanning, inventorying, and mana
 
 ## 📊 Dashboard Preview
 
-> _The dashboard provides real-time visibility into your cryptographic landscape:_
+
 
 - Asset summary (by type, status, algorithm)
 - Risk distribution (low/medium/high)
@@ -139,20 +139,9 @@ Contributions, issues, and feature requests are welcome! Please open an issue or
 
 ---
 
-## 📝 License
-
-MIT License. See [LICENSE](LICENSE) for details.
-
----
-
 ## 🙏 Acknowledgements
 
 - [cryptography](https://cryptography.io/), [Flask](https://flask.palletsprojects.com/), [schedule](https://schedule.readthedocs.io/)
 - NIST PQC, OpenSSF, and the open source security community
 
 ---
-
-<p align="center">
-<b>Showcase your quantum-safe journey!<br>
-Add your screenshots to <code>docs/images/</code> and update this README for a stunning GitHub presentation.</b>
-</p>
