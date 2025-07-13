@@ -25,6 +25,8 @@ import re
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 import yaml
+from io import StringIO
+import csv
 
 # Configure logging
 logging.basicConfig(
@@ -827,6 +829,33 @@ class EnhancedCryptoDiscovery:
         else:
             return obj
 
+def split_large_csv(input_csv, rows_per_file=100000000):
+    """Split a large CSV file into smaller chunks for Excel compatibility."""
+    import csv
+    import os
+    base, ext = os.path.splitext(input_csv)
+    with open(input_csv, 'r', newline='', encoding='utf-8') as infile:
+        reader = csv.reader(infile)
+        header = next(reader)
+        file_count = 1
+        rows = []
+        for i, row in enumerate(reader, 1):
+            rows.append(row)
+            if i % rows_per_file == 0:
+                outname = f"{base}_part{file_count}{ext}"
+                with open(outname, 'w', newline='', encoding='utf-8') as outfile:
+                    writer = csv.writer(outfile)
+                    writer.writerow(header)
+                    writer.writerows(rows)
+                rows = []
+                file_count += 1
+        if rows:
+            outname = f"{base}_part{file_count}{ext}"
+            with open(outname, 'w', newline='', encoding='utf-8') as outfile:
+                writer = csv.writer(outfile)
+                writer.writerow(header)
+                writer.writerows(rows)
+
 # Flask Web API
 app = Flask(__name__)
 CORS(app)
@@ -954,29 +983,19 @@ def get_migration_plan():
     plan = discovery.generate_migration_plan()
     return jsonify(plan)
 
-@app.route('/api/compliance/report')
-def get_compliance_report():
-    """Generate compliance report"""
-    assets = discovery.database.get_assets()
-    
-    # NIST Post-Quantum Cryptography Standards compliance
+def generate_compliance_report(assets):
     nist_pqc_compliant = 0
     deprecated_algorithms = 0
     weak_key_sizes = 0
-    
     for asset in assets:
         if asset.algorithm in ['Ed25519', 'AES', 'ChaCha20']:
             nist_pqc_compliant += 1
-        
         if asset.algorithm in ['DES', '3DES', 'MD5', 'SHA1', 'RC4']:
             deprecated_algorithms += 1
-        
         if asset.algorithm == 'RSA' and asset.key_size and asset.key_size < 2048:
             weak_key_sizes += 1
-    
     compliance_percentage = (nist_pqc_compliant / len(assets) * 100) if assets else 0
-    
-    report = {
+    return {
         'compliance_percentage': round(compliance_percentage, 2),
         'total_assets': len(assets),
         'compliant_assets': nist_pqc_compliant,
@@ -993,57 +1012,138 @@ def get_compliance_report():
         ],
         'generated_at': datetime.now().isoformat()
     }
-    
+
+@app.route('/api/compliance/report')
+def get_compliance_report():
+    """Generate compliance report"""
+    assets = discovery.database.get_assets()
+    report = generate_compliance_report(assets)
     return jsonify(report)
 
-@app.route('/api/export/csv')
-def export_csv():
-    """Export assets to CSV format"""
-    import csv
-    from io import StringIO
-    
+# Excel export endpoint and function
+@app.route('/api/export/excel')
+def export_excel():
+    """Export all assets to an Excel (.xlsx) file and return as download."""
+    try:
+        from openpyxl import Workbook
+        from io import BytesIO
+    except ImportError:
+        return jsonify({'error': 'openpyxl is required for Excel export. Please install it with pip install openpyxl.'}), 500
+
     assets = discovery.database.get_assets()
-    
-    output = StringIO()
-    writer = csv.writer(output)
-    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Crypto Assets'
+
     # Write header
-    writer.writerow([
+    ws.append([
         'ID', 'Type', 'Source', 'Algorithm', 'Key Size', 'Status',
         'Quantum Vulnerable', 'Risk Score', 'Last Updated'
     ])
-    
+
     # Write data
     for asset in assets:
-        writer.writerow([
-            asset.id, asset.type, asset.source, asset.algorithm,
-            asset.key_size or '', asset.status, asset.quantum_vulnerable,
-            asset.risk_score, asset.last_updated.isoformat()
+        ws.append([
+            asset.id,
+            asset.type,
+            asset.source,
+            asset.algorithm,
+            asset.key_size if asset.key_size is not None else '',
+            asset.status,
+            'TRUE' if asset.quantum_vulnerable else 'FALSE',
+            asset.risk_score,
+            asset.last_updated.isoformat()
         ])
-    
-    response = app.response_class(
-        output.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=crypto_assets.csv'}
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return app.response_class(
+        output.read(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': 'attachment; filename=crypto_assets.xlsx'}
     )
+
+
+@app.route('/api/export/csv')
+def export_csv():
+    """Export all assets to CSV format, one row per asset, well-structured."""
+    assets = discovery.database.get_assets()
+    csv_content = export_assets_to_csv(assets)
+    return app.response_class(
+        csv_content,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': 'attachment; filename=crypto_assets.csv',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+
+
+# Alternative: If you want to save to file and then serve it
+def export_assets_to_csv(assets, filename=None):
+    """Export assets to CSV, optionally to a file, else return as string."""
+    import csv
+    from io import StringIO
+    output = StringIO() if filename is None else open(filename, 'w', newline='', encoding='utf-8')
+    writer = csv.writer(output, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(['ID', 'Type', 'Source', 'Algorithm', 'Key Size', 'Status',
+                     'Quantum Vulnerable', 'Risk Score', 'Last Updated'])
+    for asset in assets:
+        writer.writerow([
+            asset.id,
+            asset.type,
+            asset.source,
+            asset.algorithm,
+            asset.key_size if asset.key_size is not None else '',
+            asset.status,
+            'TRUE' if asset.quantum_vulnerable else 'FALSE',
+            asset.risk_score,
+            asset.last_updated.isoformat()
+        ])
+    if filename is None:
+        csv_content = output.getvalue()
+        output.close()
+        return csv_content
+    else:
+        output.close()
+        return filename
+
+def export_assets_to_json(assets, filename=None):
+    """Export assets to JSON, optionally to a file, else return as string, in the old format."""
+    data = [{
+        'ID': asset.id,
+        'Type': asset.type,
+        'Source': asset.source,
+        'Algorithm': asset.algorithm,
+        'Key Size': asset.key_size if asset.key_size is not None else '',
+        'Status': asset.status,
+        'Quantum Vulnerable': 'TRUE' if asset.quantum_vulnerable else 'FALSE',
+        'Risk Score': asset.risk_score,
+        'Last Updated': asset.last_updated.isoformat()
+    } for asset in assets]
+    if filename is None:
+        return json.dumps(data, indent=2, default=str)
+    else:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, default=str)
+        return filename
+
+# Also update your CLI export function
+def export_assets_cli(export_format='csv'):
+    """Export assets from CLI"""
+    assets = discovery.database.get_assets()
     
-    return response
-
-# Scheduler for automated scans
-def scheduled_scan():
-    """Run scheduled cryptographic scan"""
-    if not discovery.scanning:
-        logger.info("Running scheduled crypto scan")
-        discovery.perform_full_scan()
-
-# Schedule daily scans at 2 AM
-schedule.every().day.at("02:00").do(scheduled_scan)
-
-def run_scheduler():
-    """Run the scheduler in background thread"""
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+    if export_format == 'csv':
+        filename = export_assets_to_csv(assets, filename='crypto_assets.csv')
+        print(f"Exported {len(assets)} assets to {filename}")
+        return filename
+    
+    elif export_format == 'json':
+        filename = export_assets_to_json(assets, filename='crypto_assets.json')
+        print(f"Exported {len(assets)} assets to {filename}")
+        return filename
 
 # CLI Interface   
 def main():
@@ -1075,46 +1175,22 @@ def main():
         print(f"- High priority tasks: {plan['priority_breakdown']['high']}")
         
     elif args.compliance_report:
-        # Generate compliance report via API endpoint logic
         assets = discovery.database.get_assets()
-        compliant = len([a for a in assets if not a.quantum_vulnerable])
-        compliance_pct = (compliant / len(assets) * 100) if assets else 0
-        print(f"Compliance Report:")
-        print(f"- Total assets: {len(assets)}")
-        print(f"- Compliant assets: {compliant}")
-        print(f"- Compliance percentage: {compliance_pct:.1f}%")
+        report = generate_compliance_report(assets)
+        print("Compliance Report:")
+        print(f"- Total assets: {report['total_assets']}")
+        print(f"- Compliant assets: {report['compliant_assets']}")
+        print(f"- Compliance percentage: {report['compliance_percentage']:.1f}%")
         
     elif args.export:
-        assets = discovery.database.get_assets()
-        if args.export == 'csv':
-            import csv
-            with open('crypto_assets.csv', 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['ID', 'Type', 'Algorithm', 'Status', 'Quantum Vulnerable', 'Risk Score'])
-                for asset in assets:
-                    writer.writerow([asset.id, asset.type, asset.algorithm, asset.status, 
-                                   asset.quantum_vulnerable, asset.risk_score])
-            print(f"Exported {len(assets)} assets to crypto_assets.csv")
-            
-        elif args.export == 'json':
-            with open('crypto_assets.json', 'w') as f:
-                json.dump([{
-                    'id': asset.id,
-                    'type': asset.type,
-                    'algorithm': asset.algorithm,
-                    'status': asset.status,
-                    'quantum_vulnerable': asset.quantum_vulnerable,
-                    'risk_score': asset.risk_score,
-                    'metadata': asset.metadata
-                } for asset in assets], f, indent=2, default=str)
-            print(f"Exported {len(assets)} assets to crypto_assets.json")
+        export_assets_cli(args.export)
             
     elif args.web:
         print(f"Starting web dashboard on http://{args.host}:{args.port}")
         
         # Start scheduler in background
-        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-        scheduler_thread.start()
+        # scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+        # scheduler_thread.start()
         
         app.run(host=args.host, port=args.port, debug=False)
         

@@ -92,19 +92,22 @@ async function pollScanStatus() {
 }
 
 window.exportCSV = function() {
-    const headers = ['Type', 'Algorithm', 'Key Size', 'Status', 'Risk Score', 'Source', 'Last Updated'];
-    const csvContent = [
+    const headers = ['ID', 'Type', 'Source', 'Algorithm', 'Key Size', 'Status', 'Quantum Vulnerable', 'Risk Score', 'Last Updated'];
+    const csvRows = [
         headers.join(','),
         ...filteredAssets.map(asset => [
+            asset.id || '', // fallback to empty if missing
             asset.type,
+            asset.source,
             asset.algorithm,
-            asset.key_size || 'N/A',
+            asset.key_size || '',
             asset.status,
-            asset.risk_score.toFixed(2),
-            '"' + asset.source.replace(/"/g, '""') + '"',
+            asset.quantum_vulnerable ? 'TRUE' : 'FALSE',
+            asset.risk_score,
             formatDate(asset.last_updated)
         ].join(','))
-    ].join('\\n');
+    ];
+    const csvContent = csvRows.join('\n'); // Use real newline
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
